@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Adaptive PASAT 2.0 | Cognitive Intelligence Suite</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Add Howler.js library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.3/howler.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Link to external CSS file -->
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <div class="container">
+      <!-- Description Screen -->
+      <div id="descriptionScreen" class="card animate-fade-in">
+        <div class="card-header">
+          <h1 class="card-title">
+            <div class="card-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z"></path>
+              </svg>
+            </div>
+                          Adaptive PASAT 2.0 <span class="text-gradient">Mental Exercise</span>
+            <div class="card-badge" style="margin-left: 12px;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+              </svg>
+              Professional Edition
+            </div>
+            <button id="themeToggle" class="theme-toggle-btn" title="Toggle color scheme">
+              <svg class="theme-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+                <path d="M19 3v4"/>
+                <path d="M21 5h-4"/>
+              </svg>
+            </button>
+            
+          </h1>
+        </div>
+        
+        <div class="card-content">
+          <p class="text-lg">In this <strong>purely auditory</strong> mental exercise, you will listen to a series of spoken numbers and perform mental arithmetic. Each number will be spoken aloud, and your task is to add it to the <strong>previous</strong> number you heard.</p>
+          
+          <div class="key-point mb-6">
+            <p class="mb-2"><strong>Example Sequence:</strong></p>
+            <p class="mb-0">
+              If you hear "2" followed by "7", you should enter "9" (2+7).<br>
+              If the next number is "3", you should add it to "7" (the previous number) and enter "10" (7+3).
+            </p>
+          </div>
+          
+        <div class="nback-option">
+          <label class="form-label">N-Back Difficulty</label>
+          <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2">
+              <input type="number" id="nbackValue" min="1" max="10" value="1" class="form-control" style="width: 80px;">
+              <span class="text-muted">-back</span>
+            </div>
+            <div class="text-sm text-muted">
+              <span id="nbackDescription">Add the current number to the previous number</span>
+            </div>
+          </div>
+          <div class="mt-2 text-xs text-muted">
+            <span id="nbackExample">Example: 1-back means add current number to the previous number</span>
+          </div>
+          <!-- Warning message for experimental N-back values -->
+          <div id="nbackWarning" style="display: none;"></div>
+        </div>
+
+        <div class="numberpad-option">
+          <label class="form-label">Enable Number Pad (alternatively, use text input)</label>
+          <div class="toggle-switch">
+            <input type="checkbox" id="useNumberPad" class="switch-input">
+            <label for="useNumberPad" class="switch-label"></label>              <span class="ml-2">Use number pad with buttons from 2-18</span>
+          </div>
+          
+          <div id="numberpadSizeControls" class="mt-4" style="display: none;">
+            <label class="form-label">Button Size</label>
+            <input type="range" id="numberpadSizeSlider" min="0.5" max="2" step="0.1" value="1">
+            <div class="flex justify-between text-muted" style="font-size: 0.75rem;">
+              <span>Small</span>
+              <span id="numberpadSizeValue" class="highlight-text">Normal</span>
+              <span>Large</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="beep-option">
+          <label class="form-label">Enable Error Beep Sound</label>
+          <div class="toggle-switch">
+            <input type="checkbox" id="useErrorBeep" class="switch-input">
+            <label for="useErrorBeep" class="switch-label"></label>
+            <span class="ml-2">Play a beep sound when answers are incorrect</span>
+          </div>
+          
+          <div id="beepVolumeControls" class="mt-4" style="display: none;">
+            <label class="form-label">Beep Volume</label>
+            <input type="range" id="beepVolumeSlider" min="0" max="1" step="0.1" value="0.5">
+            <div class="flex justify-between text-muted" style="font-size: 0.75rem;">
+              <span>Quiet</span>
+              <span id="beepVolumeValue" class="highlight-text">Medium</span>
+              <span>Loud</span>
+            </div>
+          </div>
+          
+          <div class="mt-2 text-xs text-muted">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline; margin-right: 4px;">
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
+            </svg>
+            The beep plays asynchronously and won't affect trial timing or the 500ms minimum interval
+          </div>
+        </div>
+
+        <div class="audio-speed-option">
+          <label class="form-label">Audio Playback Speed</label>
+          <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2">
+              <input type="range" id="audioSpeedSlider" min="1.0" max="1.5" step="0.1" value="1.0" class="form-control" style="width: 120px;">
+              <span id="audioSpeedValue" class="highlight-text">Normal (1.0x)</span>
+            </div>
+          </div>
+          <div class="mt-2 text-xs text-muted">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline; margin-right: 4px;">
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
+            </svg>
+            Adjust how fast the spoken numbers are played. Faster speeds reduce the audio window but maintain the same response time.
+          </div>
+        </div>
+
+          
+          <p>The training is adaptive - if you answer correctly several times in a row, the numbers will be presented faster. If you make consecutive errors, they will slow down. This challenges your cognitive control abilities.</p>
+          
+          <p class="mb-6">Research suggests that regular practice with this task may help improve cognitive control and potentially reduce symptoms of depression.</p>
+          
+          <div class="mb-6" style="text-align: center;">
+            <p class="text-muted" style="margin-bottom: 0.75rem; font-size: 0.875rem;">If you've benefited from this training, it would be appreciated if you fill out this short, anonymous survey!</p>
+            <a href="https://forms.gle/Gf44rxmdw3zjSbFV7" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" style="text-decoration: none; display: inline-flex;">
+              Take Survey
+            </a>
+          </div>
+
+          
+          <div class="tabs">
+            <div id="standardMode" class="tab active">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z"></path>
+              </svg>
+              Standard Mode
+            </div>
+            <div id="customMode" class="tab">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09A1.65 1.65 0 0 0 15.4 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09A1.65 1.65 0 0 0 19.4 15z"></path>
+              </svg>
+              Custom Mode
+            </div>
+            <div id="manualMode" class="tab" data-mode="manual">
+              <svg class="tab-icon" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
+              </svg>
+              <span>Manual Mode</span>
+            </div>
+            
+            <!-- Progress Tab -->
+            <div id="progressTab" class="tab progress-tab" data-mode="progress">
+              <svg class="tab-icon" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/>
+              </svg>
+              <span>Progress</span>
+            </div>
+          </div>
+          
+          <div id="modeDescription" class="mb-6">
+            <p><strong>Standard Mode:</strong> The training will last for 20 minutes with an initial interval of 3 seconds between numbers. The timing will adjust automatically based on your performance.</p>
+          </div>
+          
+          <div id="customModeControls" style="display:none;" class="mb-6">
+            <div class="grid grid-cols-1 gap-6">
+              <div class="parameter-card">
+                <span class="parameter-label">Starting Interval</span>
+                <div class="flex gap-2 mt-2">
+                  <div class="tab isi-button" data-isi="5000">5s</div>
+                  <div class="tab isi-button active" data-isi="3000">3s</div>
+                  <div class="tab isi-button" data-isi="2000">2s</div>
+                  <div class="tab isi-button" data-isi="1500">1.5s</div>
+                  <div class="tab isi-button" data-isi="1000">1s</div>
+                  <div class="tab isi-button" data-isi="500">0.5s</div>
+                </div>
+              </div>
+              
+              <div class="parameter-card">
+                <span class="parameter-label">Session Duration: <span id="durationValue" class="highlight-text">20</span> minutes</span>
+                <input type="range" id="durationSlider" min="5" max="30" value="20">
+                <div class="flex justify-between mt-2 text-muted" style="font-size: 0.75rem;">
+                  <span>5 min</span>
+                  <span>15 min</span>
+                  <span>30 min</span>
+                </div>
+              </div>
+            </div>
+            <div class="text-center mt-4">
+              <p class="text-muted text-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline; margin-right: 4px;">
+                  <path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"></path>
+                  <line x1="16" y1="8" x2="2" y2="22"></line>
+                  <line x1="17.5" y1="15" x2="9" y2="15"></line>
+                </svg>
+                Settings are automatically saved and will be restored next time
+              </p>
+            </div>
+          </div>
+          
+          <div id="manualModeControls" style="display:none;" class="mb-6">
+            <div class="grid grid-cols-1 gap-6">
+              <div class="parameter-card">
+                <span class="parameter-label">Fixed Interval (Timing will NOT change during training)</span>
+                <div class="flex gap-2 mt-2">
+                  <div class="tab isi-button" data-isi="5000">5s</div>
+                  <div class="tab isi-button" data-isi="3000">3s</div>
+                  <div class="tab isi-button" data-isi="2000">2s</div>
+                  <div class="tab isi-button" data-isi="1500">1.5s</div>
+                  <div class="tab isi-button" data-isi="1000">1s</div>
+                  <div class="tab isi-button" data-isi="900">0.9s</div>
+                  <div class="tab isi-button" data-isi="800">0.8s</div>
+                  <div class="tab isi-button" data-isi="700">0.7s</div>
+                  <div class="tab isi-button" data-isi="600">0.6s</div>
+                  <div class="tab isi-button" data-isi="500">0.5s</div>
+                </div>
+              </div>
+              
+              <div class="parameter-card">
+                <span class="parameter-label">Session Duration: <span id="manualDurationValue" class="highlight-text">20</span> minutes</span>
+                <input type="range" id="manualDurationSlider" min="5" max="30" value="20">
+                <div class="flex justify-between mt-2 text-muted" style="font-size: 0.75rem;">
+                  <span>5 min</span>
+                  <span>15 min</span>
+                  <span>30 min</span>
+                </div>
+              </div>
+            </div>
+            <div class="text-center mt-4">
+              <p class="text-muted text-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline; margin-right: 4px;">
+                  <path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"></path>
+                  <line x1="16" y1="8" x2="2" y2="22"></line>
+                  <line x1="17.5" y1="15" x2="9" y2="15"></line>
+                </svg>
+                Settings are automatically saved and will be restored next time
+              </p>
+            </div>
+          </div>
+          
+          <!-- Progress Tab Content -->
+          <div id="progressModal" class="modal hidden">
+            <div class="modal-overlay"></div>
+            <div class="modal-content">
+              <div class="modal-header">
+                <h3 class="text-lg font-semibold">Your Progress Over Time</h3>
+                <div class="flex gap-2">
+                  <button id="clearProgress" class="btn btn-secondary btn-sm" onclick="clearProgressData()">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M3 6h18"></path>
+                      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                    </svg>
+                    Clear Progress
+                  </button>
+                  <button id="closeProgressModal" class="modal-close-btn">
+                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              
+              <div class="modal-body">
+                <!-- Progress Summary Cards -->
+                <div class="grid grid-cols-3 gap-4 mb-6">
+                  <div class="stat-card">
+                    <div class="stat-value" id="totalSessions">0</div>
+                    <div class="stat-label">Total Sessions</div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-value" id="totalQuestions">0</div>
+                    <div class="stat-label">Questions Answered</div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-value" id="avgAccuracy">0%</div>
+                    <div class="stat-label">Average Accuracy</div>
+                  </div>
+                </div>
+
+                <!-- Chart Container -->
+                <div class="bg-white rounded-lg border p-6 mb-6">
+                  <div class="flex justify-between items-center mb-4">
+                    <h4 class="text-lg font-medium">Daily Performance</h4>
+                    <div class="mode-filter flex items-center gap-2">
+                      <label for="modeFilter" class="text-sm text-muted">Filter by Mode:</label>
+                      <select id="modeFilter" class="form-control form-control-sm">
+                        <option value="all">All Modes</option>
+                        <option value="Standard">Standard Mode Only</option>
+                        <option value="Custom">Custom Mode Only</option>
+                        <option value="Manual">Manual Mode Only</option>
+                      </select>
+                    </div>
+                  </div>
+                  <canvas id="progressChart" width="400" height="200"></canvas>
+                </div>
+
+                <!-- Recent Sessions -->
+                <div class="bg-white rounded-lg border p-6">
+                  <h4 class="text-lg font-medium mb-4">Recent Sessions</h4>
+                  <div id="recentSessionsList" class="space-y-3">
+                    <!-- Recent sessions will be populated here -->
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          
+
+          <div class="flex justify-center">
+            <button id="startTraining" class="btn btn-primary btn-lg">
+              Start Training
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Training Screen -->
+      <div id="trainingScreen" style="display:none;" class="card animate-fade-in">
+        <div class="card-header">
+          <h2 class="card-title">
+            <div class="card-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+              </svg>
+            </div>
+            Active Training Session
+          </h2>
+          <div class="timer-container">
+            <div class="timer-indicator">
+              <div id="timerCircle" class="timer-circle"></div>
+              <div class="timer-inner">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary);">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+              </div>
+            </div>
+            <div>
+              <div class="timer-value"><span id="minutesLeft">20</span>:<span id="secondsLeft">00</span></div>
+              <div style="font-size: 0.75rem; color: var(--text-tertiary);">remaining</div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="card-content">
+          <div class="grid grid-cols-2 gap-6 mb-6">
+            <div class="parameter-card">
+              <div class="parameter-label">Current Interval</div>
+              <div class="parameter-value"><span id="currentISI">3000</span> <span class="unit">ms</span></div>
+            </div>
+            <div class="parameter-card">
+              <div class="parameter-label">Consecutive Performance</div>
+              <div class="counter-dots mt-2">
+                <div class="counter-dot"></div>
+                <div class="counter-dot"></div>
+                <div class="counter-dot"></div>
+                <div class="counter-dot"></div>
+              </div>
+            </div>
+          </div>
+          
+
+          
+          <div id="statusMessage" class="animate-fade-in">Get ready...</div>
+          
+          <input id="answerInput" type="number" placeholder="Type your answer here" class="animate-fade-in">
+          
+          <div id="numberpad" class="numberpad animate-fade-in" style="display: none;">
+            <button class="numberpad-button" data-value="2">2</button>
+            <button class="numberpad-button" data-value="3">3</button>
+            <button class="numberpad-button" data-value="4">4</button>
+            <button class="numberpad-button" data-value="5">5</button>
+            <button class="numberpad-button" data-value="6">6</button>
+            <button class="numberpad-button" data-value="7">7</button>
+            <button class="numberpad-button" data-value="8">8</button>
+            <button class="numberpad-button" data-value="9">9</button>
+            <button class="numberpad-button" data-value="10">10</button>
+            <button class="numberpad-button" data-value="11">11</button>
+            <button class="numberpad-button" data-value="12">12</button>
+            <button class="numberpad-button" data-value="13">13</button>
+            <button class="numberpad-button" data-value="14">14</button>
+            <button class="numberpad-button" data-value="15">15</button>
+            <button class="numberpad-button" data-value="16">16</button>
+            <button class="numberpad-button" data-value="17">17</button>
+            <button class="numberpad-button" data-value="18">18</button>
+          </div>
+
+          <div class="flex justify-center mt-8">
+            <button id="endTraining" class="btn btn-primary">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>
+              End Training
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Results Screen -->
+      <div id="resultsScreen" style="display:none;" class="animate-fade-in">
+        <div class="card mb-6">
+          <div class="card-header">
+            <h2 class="card-title">
+              <div class="card-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                </svg>
+              </div>
+              Training Performance
+            </h2>
+            <button id="startNewTraining" class="btn btn-primary">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 2v6h6"></path>
+                <path d="M3 13a9 9 0 1 0 3-7.7L3 8"></path>
+              </svg>
+              Start New Training
+            </button>
+          </div>
+          
+          <div class="card-content">
+            <div class="grid grid-cols-3 gap-6 animate-slide-up">
+              <div class="stat-card">
+                <div class="stat-label">Correct Answers</div>
+                <div class="stat-value"><span id="correctCount">0</span>/<span id="totalCount" class="unit">0</span></div>
+              </div>
+              
+              <div class="stat-card">
+                <div class="stat-label">Accuracy Rate</div>
+                <div class="stat-value"><span id="accuracyRate">0%</span></div>
+              </div>
+              
+              <div class="stat-card">
+                <div class="stat-label">Minimum Interval</div>
+                <div class="stat-value"><span id="minISI">500</span><span class="unit">ms</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Cumulative Progress Section -->
+        <div class="card mb-6">
+          <div class="card-header">
+            <h3 class="card-title">
+              <div class="card-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="9" cy="7" r="4"></circle>
+                  <path d="m22 21-2-2"></path>
+                  <path d="M16 16l2 2"></path>
+                </svg>
+              </div>
+              Your Overall Progress
+            </h3>
+          </div>
+          
+          <div class="card-content">
+            <div class="grid grid-cols-4 gap-6">
+              <div class="stat-card">
+                <div class="stat-label">Total Sessions</div>
+                <div class="stat-value" id="cumulativeSessions">0</div>
+              </div>
+              
+              <div class="stat-card">
+                <div class="stat-label">Total Questions</div>
+                <div class="stat-value" id="cumulativeQuestions">0</div>
+              </div>
+              
+              <div class="stat-card">
+                <div class="stat-label">Lifetime Accuracy</div>
+                <div class="stat-value" id="cumulativeAccuracy">0%</div>
+              </div>
+              
+              <div class="stat-card">
+                <div class="stat-label">Best Session</div>
+                <div class="stat-value" id="bestSessionAccuracy">0%</div>
+              </div>
+            </div>
+            
+            <!-- Streaks Section -->
+            <div class="mt-6 grid grid-cols-3 gap-6">
+              <div class="stat-card">
+                <div class="stat-label">Current Streak</div>
+                <div class="stat-value" id="currentStreak">0 <span class="stat-subtitle-left">days</span></div>
+              </div>
+              
+              <div class="stat-card">
+                <div class="stat-label">Longest Streak</div>
+                <div class="stat-value" id="longestStreak">0 <span class="stat-subtitle-left">days</span></div>
+              </div>
+              
+              <div class="stat-card">
+                <div class="stat-label">Training Days</div>
+                <div class="stat-value" id="totalTrainingDays">0 <span class="stat-subtitle-left">total</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    
+    <!-- Version Notice Modal -->
+    <div id="versionNoticeModal" class="modal hidden">
+      <div class="modal-overlay"></div>
+      <div class="modal-content" style="max-width: 700px;">
+        <div class="modal-header">
+          <h3 class="text-lg font-semibold">Important Notice: CCT v2 is No Longer Updated</h3>
+          <button id="closeVersionNotice" class="modal-close-btn">
+            <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div style="margin-bottom: 1.5rem;">
+            <p style="font-size: 1.1rem; margin-bottom: 1rem; color: var(--text-primary);">
+              This version of <strong>Cognitive Control Training (CCT v2)</strong> is old and will no longer be receiving updates.
+            </p>
+            <p style="font-size: 1.1rem; margin-bottom: 1rem; color: var(--text-primary);">
+              <strong>CCT v3</strong> is now available at <a href="https://neurevo.net" target="_blank" rel="noopener noreferrer" style="color: var(--primary); text-decoration: underline;">https://neurevo.net</a>
+            </p>
+            <p style="font-size: 1.1rem; margin-bottom: 1.5rem; color: var(--text-primary);">
+              You can find the studies that informed CCT at <a href="https://neurevo.net/studies" target="_blank" rel="noopener noreferrer" style="color: var(--primary); text-decoration: underline;">https://neurevo.net/studies</a>
+            </p>
+          </div>
+          
+          <div style="background: var(--bg-light); padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem;">
+            <h4 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem; color: var(--text-primary);">New Features in CCT v3:</h4>
+            
+            <div style="margin-bottom: 1.25rem;">
+              <h5 style="font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">Training Settings</h5>
+              <ul style="list-style: disc; padding-left: 1.5rem; color: var(--text-secondary); line-height: 1.6;">
+                <li><strong>Show Timer:</strong> Hide the timer display to reduce distractions. The timer will still function normally in the background.</li>
+                <li><strong>Show Keybindings Configuration:</strong> Number Keybindings (10-18) - Set keyboard shortcuts for numbers 10-18. Click a button and press a key to assign it. These shortcuts work during active sessions.</li>
+              </ul>
+            </div>
+            
+            <div style="margin-bottom: 1.25rem;">
+              <h5 style="font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">Custom Mode Settings</h5>
+              <ul style="list-style: disc; padding-left: 1.5rem; color: var(--text-secondary); line-height: 1.6;">
+                <li><strong>Starting Interval:</strong> 5s, 3s, 2s, 1.5s, 1s, 500ms, 400ms, 300ms, 200ms</li>
+                <li><strong>Minimum Interval (Lower Bound):</strong> 500ms - The ISI will not decrease below this value during the session. Minimum: 200ms (200ms, 2500ms, 5000ms)</li>
+                <li><strong>Constrain Sum to 9:</strong> When enabled, number pairs will never sum to more than 9, ensuring all answers are single digits. The number pad will automatically switch to a 3x3 layout (1-9) when this option is active.</li>
+                <li><strong>Add Value (+N):</strong> Off, +1, +2, +3 - Add this number to the sum. Formula: Answer = (Previous + Current) + N. Example: With N=2, if previous=3 and current=5, answer = (3+5)+2 = 10. Answers are capped at 18.</li>
+              </ul>
+            </div>
+          </div>
+          
+          <div style="text-align: center;">
+            <a href="https://neurevo.net" target="_blank" rel="noopener noreferrer" class="btn btn-primary" style="text-decoration: none; display: inline-block;">
+              Visit CCT v3 at neurevo.net
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Link to external JavaScript file -->
+    <script src="script.js"></script>
+    <script>
+      document.getElementById('customMode').addEventListener('click', function() {
+        document.getElementById('customMode').classList.add('active');
+        document.getElementById('standardMode').classList.remove('active');
+        document.getElementById('customModeControls').style.display = 'block';
+        // Note: isStandardMode handling is done in the main script.js file
+        document.getElementById('modeDescription').innerHTML = '<p><strong>Custom Mode:</strong> Customize the duration and starting timing of your training session.</p>';
+      });
+    </script>
+  </body>
+</html>
