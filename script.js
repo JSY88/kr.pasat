@@ -6,6 +6,8 @@ const STRICT_INPUT_MODE = true;
 // 2. 늦은 답변 봐주기: 문제가 바뀐 직후(1.5초)에 이전 정답을 입력하면 무시함 (true: 켜기)
 const IGNORE_LATE_ANSWERS = true;
 
+// [추가] 3. 자극 전환 시 '잠깐 멈춤': 새로운 숫자가 나오면 0.5초 동안 입력을 아예 막아요.
+const INPUT_LOCK_DURATION = 500; // 0.5초 (밀리초 단위)
 
 // 스마트 확률형 숫자 생성기
 // 패턴이 감지되면 '무조건 차단'하지 않고, '주사위를 굴려서' 통과 여부를 결정합니다.
@@ -33,6 +35,11 @@ let currentIntervalId = null;    // Current interval timer
 let audioPlayInProgress = false; // Flag for audio playing
 let processingAnswer = false;    // Flag for answer processing
 let nextPresentationTime = 0;    // When the next number should be presented
+
+// [추가] 입력 잠금 상태인지 기억하는 변수 ("지금은 얼음 상태니?")
+let isInputLocked = false;
+
+
 let forcePresentNextNumber = false; // Flag to force next number presentation
 let useNumberPad = false;
 let answerProcessed = false;     // Track if current answer has been processed
@@ -286,6 +293,11 @@ const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
 // Helper function to check if button clicks can be processed
 function canProcessButtonClick() {
+  // [추가] 지금 '얼음' 상태라면 아무것도 누르지 못하게 막아요!
+  if (isInputLocked) {
+    return false;
+  }
+
   if (processingAnswer) {
     return false;
   }
@@ -301,6 +313,10 @@ function canProcessButtonClick() {
   // All conditions passed
   return true;
 }
+
+
+
+
 
 // Helper function to check if a specific answer is correct and can be processed immediately
 function canProcessAnswerImmediately(userAnswer) {
@@ -549,9 +565,12 @@ function startSession() {
 
 // Present next number with timeout handling for incorrect answers
 async function presentNextNumber() {
-// [새로 추가] 문제가 바뀌면 숨겨진 입력값 저장소도 초기화!
-  hiddenInputBuffer = "";
-  // [수정됨] 문제가 바뀌는 순간, 이전 정답과 시간을 기록해둡니다.
+  // 1. 문제가 바뀌었으니 숨겨둔 입력값 창고를 깨끗이 비워요.
+  if (typeof hiddenInputBuffer !== 'undefined') {
+    hiddenInputBuffer = "";
+  }
+  
+  // 2. 이전 정답과 시간을 기록해둬요 (늦은 답변 체크용)
   if (correctAnswer !== null) {
     previousRoundAnswer = correctAnswer;
     lastRoundChangeTime = Date.now();
@@ -596,6 +615,19 @@ async function presentNextNumber() {
   
   // Reset forced presentation flag
   forcePresentNextNumber = false;
+
+  // [핵심 추가] 자극 전환 직후, 설정한 시간만큼 입력을 '잠금(Lock)' 겁니다!
+  isInputLocked = true; // "얼음!"
+  
+  setTimeout(() => {
+    isInputLocked = false; // "땡! 이제 입력해도 돼"
+    
+    // 키보드 모드라면 커서를 다시 깜빡이게 해줘요
+    if (!useNumberPad && sessionActive) {
+      answerInput.focus();
+    }
+  }, INPUT_LOCK_DURATION);
+
 
   // [수정] 다음 숫자가 제시될 때 입력창과 패드를 즉시 초기화
   if (useNumberPad) {
@@ -754,6 +786,13 @@ async function presentNextNumber() {
     }, 1000);
   }
 }
+
+
+
+
+
+
+
 // Process answer - centralized function for handling all answer processing
 function processAnswer(userAnswer) {
   
@@ -2539,19 +2578,25 @@ function updateFeedbackUI() {
 }
 
 
-// [수정된 함수] 입력 검증 (부분 일치 허용 + 정답 없음 방어)
+// [수정된 함수] 입력 검증 (잠금 기능 + 부분 일치 + 정답 없음 방어)
 function shouldIgnoreInput(userInputValue) {
-  // 1. 숫자가 아니면 일단 통과 (시스템 처리용)
+  
+  // 1. [핵심] 자극 전환 직후 '얼음(Lock)' 상태라면 무조건 차단!
+  if (isInputLocked) {
+    return true; 
+  }
+
+  // 2. 숫자가 아니면 일단 통과 (시스템 처리용)
   if (userInputValue === null || isNaN(userInputValue)) return false;
 
-  // 2. [방어] 정답이 아직 생성되지 않은 전환 구간이면 무조건 차단
+  // 3. [방어] 정답이 아직 생성되지 않은 전환 구간이면 무조건 차단
   if (correctAnswer === null) {
     return true; 
   }
 
   const numInput = Number(userInputValue);
 
-  // 3. 엄격 모드 (두 자리 수 입력 문제 해결)
+  // 4. 엄격 모드 (두 자리 수 입력 문제 해결)
   if (STRICT_INPUT_MODE) {
     // 문자열로 변환해서 비교 (예: 정답 "12", 입력 "1")
     const strInput = String(userInputValue);
@@ -2572,7 +2617,7 @@ function shouldIgnoreInput(userInputValue) {
     return true;
   }
 
-  // 4. 늦은 답변 방지 (기존 로직 유지)
+  // 5. 늦은 답변 방지 (기존 로직 유지)
   if (IGNORE_LATE_ANSWERS) {
     if (numInput === previousRoundAnswer && (Date.now() - lastRoundChangeTime < 1500)) {
       console.log("늦은 답변 감지됨: 오답 처리 안 함");
@@ -2582,4 +2627,3 @@ function shouldIgnoreInput(userInputValue) {
 
   return false; // 그 외에는 정상 처리
 }
-
