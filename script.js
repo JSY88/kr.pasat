@@ -1,3 +1,22 @@
+// ==========================================
+// [사용자 설정 옵션]
+// 1. 엄격한 입력 모드: 정답이 아니면 아예 입력되지 않게 합니다 (true: 켜기)
+const STRICT_INPUT_MODE = true; 
+
+// 2. 늦은 답변 봐주기: 문제가 바뀐 직후(1.5초)에 이전 정답을 입력하면 무시함 (true: 켜기)
+const IGNORE_LATE_ANSWERS = true;
+
+
+// 스마트 확률형 숫자 생성기
+// 패턴이 감지되면 '무조건 차단'하지 않고, '주사위를 굴려서' 통과 여부를 결정합니다.
+// function generateNumber() { 해당 함수로 가서 확률 조정
+
+// ==========================================
+
+// 이전 정답을 기억하기 위한 변수 (수정하지 마세요)
+let previousRoundAnswer = null;
+let lastRoundChangeTime = 0;
+
 // Howler.js audio system variables
 let howlReady = false;
 let numberSounds = {};
@@ -36,7 +55,11 @@ let totalAttempts = 0;
 let lowestISI = 3000;
 let remainingTime = 20 * 60; // in seconds
 let sessionActive = false; // Track if training session is active
-
+// [추가] 피드백 설정 변수
+let feedbackSettings = {
+  enabled: true,    // 피드백 표시 여부 (기본값: 켜짐)
+  duration: 1000    // 피드백 유지 시간 (ms)
+};
 // Beep system is now HTML5-based, no AudioContext initialization needed
 
 // Improved initialization for Howler with better error handling
@@ -343,8 +366,59 @@ function updateConsecutiveCounter() {
 }
 
 // Generate a random number between 1-9
+
+
+// [수정된 함수] 스마트 패턴 확률형 숫자 생성기
+// 패턴이 감지되면 '무조건 차단'하지 않고, '주사위를 굴려서' 통과 여부를 결정합니다.
 function generateNumber() {
-  return Math.floor(Math.random() * 9) + 1;
+  // ==========================================
+  // [확률 설정] 0.0 ~ 1.0 사이 (0.1은 10%, 1.0은 100% 허용)
+  // 원래 랜덤 확률(1/9)보다 더 낮게 설정하여 "가끔" 나오게 만듭니다.
+  
+  const ALLOW_AA_PROBABILITY = 0.05;   // 연속 숫자(5->5)가 나올 확률을 15%만 허용
+  const ALLOW_ABA_PROBABILITY = 0.10;  // 샌드위치(3->8->3)가 나올 확률을 30%만 허용
+  // ==========================================
+
+  let candidate;
+  let attempts = 0;
+  const maxAttempts = 20; // 무한 루프 방지용 안전장치
+
+  while (attempts < maxAttempts) {
+    // 1부터 9까지 랜덤 생성
+    candidate = Math.floor(Math.random() * 9) + 1;
+    
+    let reject = false;
+    // numberSequence는 전역 변수로 선언되어 있어 접근 가능합니다.
+    const len = numberSequence.length;
+
+    // 1. A-A 패턴 검사 (직전 숫자와 같을 경우)
+    if (len > 0 && candidate === numberSequence[len - 1]) {
+      // 설정된 확률보다 랜덤값이 크면 -> 거절(reject)하고 다시 뽑기
+      if (Math.random() > ALLOW_AA_PROBABILITY) {
+        reject = true;
+      }
+    }
+
+    // 2. A-B-A 패턴 검사 (전전 숫자와 같을 경우)
+    // (단, 이미 A-A에서 거절당했으면 검사할 필요 없음)
+    if (!reject && len > 1 && candidate === numberSequence[len - 2]) {
+      // 설정된 확률보다 랜덤값이 크면 -> 거절(reject)하고 다시 뽑기
+      if (Math.random() > ALLOW_ABA_PROBABILITY) {
+        reject = true;
+      }
+    }
+
+    // 거절되지 않았다면 이 숫자를 확정!
+    if (!reject) {
+      return candidate;
+    }
+
+    // 거절되었다면 카운트 올리고 다시 while문 처음으로 돌아가서 재추첨
+    attempts++;
+  }
+
+  // 만약 20번을 다시 뽑아도 계속 패턴이 걸리면(정말 운이 나쁜 경우), 그냥 마지막 뽑은 숫자를 사용
+  return candidate;
 }
 
 // Calculate correct answer based on N-back value
@@ -394,7 +468,7 @@ function startSession() {
   resultsScreen.style.display = 'none';
   
   // Initialize session variables - comprehensive reset
-  selectedISI = Math.max(500, selectedISI); // Ensure minimum 500ms
+  selectedISI = Math.max(1200, selectedISI); // Ensure minimum 500ms
   currentISIValue = selectedISI;
   currentISI.textContent = currentISIValue;
   consecutiveCorrect = 0;
@@ -469,8 +543,20 @@ function startSession() {
   }, 1000);
 }
 
+
+
+
+
 // Present next number with timeout handling for incorrect answers
 async function presentNextNumber() {
+// [새로 추가] 문제가 바뀌면 숨겨진 입력값 저장소도 초기화!
+  hiddenInputBuffer = "";
+  // [수정됨] 문제가 바뀌는 순간, 이전 정답과 시간을 기록해둡니다.
+  if (correctAnswer !== null) {
+    previousRoundAnswer = correctAnswer;
+    lastRoundChangeTime = Date.now();
+  }
+
   // Don't present numbers if session is not active
   if (!sessionActive) {
     return;
@@ -494,12 +580,9 @@ async function presentNextNumber() {
   
   // Only enforce timing if we're not the first number and not forced to present next
   if (numberSequence.length > 0 && !forcePresentNextNumber) {
-    // Calculate how much time remains before next presentation should occur
     const timeUntilNextPresentation = nextPresentationTime - currentTime;
     
-    // If we still have time to wait, schedule and return
     if (timeUntilNextPresentation > 0) {
-      // Clear any existing timeout before setting new one
       if (currentIntervalId) {
         clearTimeout(currentIntervalId);
         currentIntervalId = null;
@@ -507,57 +590,61 @@ async function presentNextNumber() {
       currentIntervalId = setTimeout(() => {
         presentNextNumber();
       }, timeUntilNextPresentation);
-      // Keep flag set until timeout completes to prevent multiple calls
       return;
     }
   }
   
   // Reset forced presentation flag
   forcePresentNextNumber = false;
-  
+
+  // [수정] 다음 숫자가 제시될 때 입력창과 패드를 즉시 초기화
+  if (useNumberPad) {
+    numberpadButtons.forEach(btn => {
+      btn.classList.remove('selected');
+      btn.classList.remove('incorrect-selection');
+    });
+  } else {
+    answerInput.value = '';
+    answerInput.focus();
+  }
+
+  // 이전 피드백 메시지와 색상도 즉시 제거
+  statusMessage.textContent = "";
+  statusMessage.style.color = '';
+  answerInput.style.borderColor = '';
+
   // Generate a new number
   currentNumber = generateNumber();
   
   // Add current number to sequence
   numberSequence.push(currentNumber);
   
-  // Calculate correct answer for the new round using N-back logic
-  // For N-back, we need N+1 numbers before we can ask the first question
   if (numberSequence.length >= nbackValue + 1) {
     correctAnswer = calculateNbackAnswer(currentNumber, numberSequence, nbackValue);
-    currentTrialId++; // Increment trial ID for new trial
+    currentTrialId++; 
 
-    // Create and push the trial object immediately
     const currentTrial = {
       nbackValue: nbackValue,
       currentNumber: currentNumber,
-      previousNumber: numberSequence[numberSequence.length - nbackValue - 1], // The number N positions back
+      previousNumber: numberSequence[numberSequence.length - nbackValue - 1], 
       correctAnswer: correctAnswer,
       userAnswer: null,
       correct: null,
       isi: currentISIValue,
-      trialId: currentTrialId // Add trial ID to trial object
+      trialId: currentTrialId 
     };
     sessionHistory.push(currentTrial);
   }
   
-  // Let the system know we're presenting a new number
   lastPresentedNumber = currentNumber;
-  
-  // Reset flags in safe order: nextNumberScheduled first, then answer processing flags
   nextNumberScheduled = false;
   
-  // Now it's safe to reset answer processing flags for new trial
   if (correctAnswer !== null) {
     answerProcessed = false;
     processingAnswer = false;
   }
   
-  // Clear input field 
-  if (useNumberPad) {
-    // Don't clear button selections here - let the timeout or correct answer processing handle it
-    // This allows the timeout to find the selected button for wrong answers
-  } else {
+  if (!useNumberPad) {
     answerInput.value = '';
     answerInput.focus();
   }
@@ -568,58 +655,37 @@ async function presentNextNumber() {
     
     // After speaking, schedule next number
     if (numberSequence.length >= nbackValue + 1) {
-      // Set the next presentation time based on current time + ISI
       nextPresentationTime = Date.now() + currentISIValue;
       
-      // Schedule next number immediately (same as else branch)
       currentIntervalId = setTimeout(() => {
         presentNextNumber();
       }, currentISIValue);
       
-      // Separately, set timeout to process answer if it hasn't been processed yet
-      const trialId = currentTrialId; // Capture the current trial ID
-      const trialPresentationTime = Date.now(); // Capture when this number was presented (audio just finished)
+      const trialId = currentTrialId; 
+      const trialPresentationTime = Date.now(); 
       setTimeout(() => {
-        // Only process if answer hasn't been processed yet and we're not currently processing
         if (!answerProcessed && !processingAnswer) {
-          // Find the trial by trialId to ensure we're processing the correct trial
           const targetTrial = sessionHistory.find(t => t.trialId === trialId);
           if (!targetTrial || targetTrial.userAnswer !== null) {
-            return; // Trial already answered or doesn't exist
+            return; 
           }
           const lastTrialIndex = sessionHistory.length - 1;
           const targetTrialIndex = sessionHistory.findIndex(t => t.trialId === trialId);
           
-          // If target trial is not the last one, we need to handle it specially
-          // (This can happen if the next number was already presented)
           if (targetTrialIndex !== lastTrialIndex) {
-            // The next number was already presented, so we need to process the old trial directly
-            // Don't use processAnswer since it will use the wrong trial
-            // IMPORTANT: Don't modify answerProcessed flag - it's for the current trial, not this old one
-            
-            // Get the answer (this might be from the old trial's input, which may have been cleared)
             let finalAnswer = null;
-            // Note: The input field may have been cleared for the new trial, so we might not find an answer
-            // This is expected - the user didn't answer in time for the old trial
+            const userAnswer = null; 
             
-            const userAnswer = null; // Always treat as no answer since we're past the deadline
-            
-            // Calculate response time (from when number was presented to when answer was processed)
             const responseTime = Date.now() - trialPresentationTime;
             targetTrial.responseTime = responseTime;
             targetTrial.userAnswer = userAnswer;
-            
-            // Check if correct (always false since userAnswer is null - no answer provided)
             targetTrial.correct = false;
             
-            // Update counters
             totalAttempts++;
             consecutiveCorrect = 0;
             consecutiveIncorrect++;
             
-            // Update ISI based on performance (only if NOT in manual mode)
             if (!isManualMode) {
-              const minISI = 500;
               if (consecutiveIncorrect >= 4) {
                 currentISIValue = Math.min(5000, currentISIValue + 100);
                 currentISI.textContent = currentISIValue;
@@ -627,71 +693,51 @@ async function presentNextNumber() {
               }
             }
             
-            // Update display
             updateConsecutiveCounter();
-            
-            // Play error beep if enabled
             playErrorBeep();
-            
-            // Don't modify answerProcessed or correctAnswer - they're for the current trial
-            // Don't clear input field - it's for the current trial
           } else {
-            // Target trial is the last one, so we can use processAnswer normally
-            // correctAnswer should already be correct (it's for the current trial)
-            // Don't modify it - just use processAnswer directly
-            
-            // Don't set flags here - let processAnswer() manage its own flags
             let finalAnswer = null;
             
             if (useNumberPad) {
-              // Check if any button is selected
               const selectedButton = document.querySelector('.numberpad-button.selected');
               if (selectedButton) {
                 finalAnswer = parseInt(selectedButton.getAttribute('data-value'));
               }
             } else {
-              // Get answer from text input
               const inputValue = answerInput.value.trim();
               if (inputValue) {
                 finalAnswer = Number(inputValue);
               }
             }
             
-            // Process the final answer using centralized function
             let userAnswer = null;
             if (finalAnswer !== null && !isNaN(finalAnswer)) {
               userAnswer = Number(finalAnswer);
             }
             
-            // Use centralized processAnswer function
-            // Mark as processed before calling to prevent other handlers from firing
             answerProcessed = true;
             
             let success = false;
             if (userAnswer !== null) {
               success = processAnswer(userAnswer);
             } else {
-              // No answer provided - treat as incorrect (null means no answer)
               success = processAnswer(null);
             }
             
-            // If processAnswer failed, reset the flag
             if (!success) {
               answerProcessed = false;
             }
             
-            // Clear input field after timeout processing for next round
             if (useNumberPad) {
               numberpadButtons.forEach(btn => btn.classList.remove('selected'));
             } else {
               answerInput.value = '';
-              answerInput.focus(); // Ensure input field gets focus for next round
+              answerInput.focus(); 
             }
           }
         }
       }, currentISIValue);
     } else {
-      // Not enough numbers in sequence yet, just schedule next
       nextPresentationTime = Date.now() + currentISIValue;
       
       currentIntervalId = setTimeout(() => {
@@ -700,19 +746,14 @@ async function presentNextNumber() {
     }
     
   } catch (error) {
-    // Reset flag on error and recover
     nextNumberScheduled = false;
     setTimeout(() => {
-      // Additional safety checks before recovery
       if (!nextNumberScheduled && !processingAnswer) {
         presentNextNumber();
       }
     }, 1000);
   }
-  
-
 }
-
 // Process answer - centralized function for handling all answer processing
 function processAnswer(userAnswer) {
   
@@ -769,6 +810,31 @@ function processAnswer(userAnswer) {
   } else {
     consecutiveCorrect = 0;
     consecutiveIncorrect++;
+  }
+
+// [수정/추가] 설정에 따른 시각적 피드백 로직
+  if (feedbackSettings.enabled) {
+    const feedbackColor = isCorrect ? 'var(--success)' : 'var(--danger)';
+    const feedbackText = isCorrect ? 'Correct!' : 'Incorrect';
+    
+    // 피드백 적용
+    if (useNumberPad) {
+      statusMessage.textContent = feedbackText;
+      statusMessage.style.color = feedbackColor;
+    } else {
+      answerInput.style.borderColor = feedbackColor;
+      statusMessage.textContent = feedbackText;
+      statusMessage.style.color = feedbackColor;
+    }
+    
+    // 설정된 시간(duration)이 지나면 피드백 지우기
+    setTimeout(() => {
+      // 세션이 활성화 상태일 때만 지움 (다음 숫자가 나와서 이미 지워졌을 수도 있으므로)
+      if (sessionActive) {
+         statusMessage.textContent = "";
+         answerInput.style.borderColor = "";
+      }
+    }, feedbackSettings.duration); 
   }
 
   // Update ISI based on performance (only if NOT in manual mode)
@@ -2205,57 +2271,51 @@ window.addEventListener('DOMContentLoaded', function() {
   }
 
   // Register button handlers
-  
-  numberpadButtons.forEach((button, index) => {
-    
-    function handleButtonInteraction(e) {
-      e.preventDefault();
+  function handleButtonInteraction(e) {
+    e.preventDefault();
 
-      if (!canProcessButtonClick()) {
-        numberpadButtons.forEach(b => b.classList.remove('selected'));
-        return;
-      }
-
-      const btn = e.currentTarget;
-      const value = parseInt(btn.getAttribute('data-value'));
-
-      // Clear all buttons and select current one
+    // 클릭 가능 상태인지 확인
+    if (!canProcessButtonClick()) {
       numberpadButtons.forEach(b => b.classList.remove('selected'));
-      btn.classList.add('selected');
+      return;
+    }
 
-      // Only process immediately if the answer is correct
-      if (shouldProcessAnswerImmediately(value)) {
-        answerProcessed = true;
-        const success = processAnswer(value);
-        
-        if (!success) {
-          answerProcessed = false;
-          numberpadButtons.forEach(b => b.classList.remove('selected'));
-        }
-      } else {
-        // Wrong answer - don't process immediately, let timeout handle it
-        // The button remains selected so the timeout can find it
-        // answerProcessed remains false so the timeout can process it
-        
-        // Add visual feedback that the answer is wrong
-        btn.classList.add('incorrect-selection');
-        setTimeout(() => {
-          btn.classList.remove('incorrect-selection');
-        }, 300);
+    const btn = e.currentTarget;
+    const value = parseInt(btn.getAttribute('data-value'));
+
+    // [중요] 엄격 모드거나 늦은 답변이면 여기서 멈춤 (버튼 선택 안 됨)
+    if (shouldIgnoreInput(value)) {
+      numberpadButtons.forEach(b => b.classList.remove('selected'));
+      return;
+    }
+
+    // 기존 버튼 선택 해제 및 현재 버튼 선택
+    numberpadButtons.forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+
+    // 정답이면 즉시 처리
+    if (shouldProcessAnswerImmediately(value)) {
+      answerProcessed = true;
+      const success = processAnswer(value);
+      
+      if (!success) {
+        answerProcessed = false;
+        numberpadButtons.forEach(b => b.classList.remove('selected'));
       }
-    }
-
-    if (isTouchDevice) {
-      button.addEventListener('touchstart', handleButtonInteraction, { passive: false });
     } else {
-      button.addEventListener('mousedown', handleButtonInteraction);
+      // 오답이면 빨간색 표시만 하고 대기 (타임아웃이 처리하도록)
+      btn.classList.add('incorrect-selection');
+      setTimeout(() => {
+        btn.classList.remove('incorrect-selection');
+      }, 300);
     }
-    
-    button.addEventListener('click', function(e) {
-      handleButtonInteraction(e);
-    });
-  });
+  }
 
+  // [이 부분이 빠져있었습니다! 함수를 실제 버튼에 연결하는 코드]
+  numberpadButtons.forEach((button) => {
+    button.addEventListener('mousedown', handleButtonInteraction);
+    button.addEventListener('touchstart', handleButtonInteraction, {passive: false});
+  });
 
 
   // Main event listeners
@@ -2273,29 +2333,70 @@ window.addEventListener('DOMContentLoaded', function() {
     descriptionScreen.style.display = 'block';
   });
 
-  // Input handler - for typed mode, process correct answers immediately
-  // Wrong answers wait for timeout
-  answerInput.addEventListener('input', function() {
-    if (!canProcessButtonClick()) {
-      return;
-    }
+// Input handler - 고스트 모드 (화면엔 표시 안 됨)
+  answerInput.addEventListener('input', function(e) {
     
-    const userInput = answerInput.value.trim();
-    const userAnswer = Number(userInput);
+    // 1. 입력된 값을 가져옴
+    const typedChar = answerInput.value;
     
-    if (!isNaN(userAnswer) && userInput.length > 0) {
-      // Check if this answer is correct
-      if (userAnswer === correctAnswer) {
-        // Correct answer - process immediately
-        answerProcessed = true;
-        const success = processAnswer(userAnswer);
-        if (!success) {
-          answerProcessed = false;
-        }
+    // 2. [핵심] 가져오자마자 화면 입력창은 즉시 비워버림 (사용자 눈에 안 보이게)
+    answerInput.value = '';
+
+    if (!canProcessButtonClick()) return;
+
+    // 숫자가 아니면 무시 (시스템적으로 들어간 공백 등)
+    if (!typedChar || isNaN(Number(typedChar))) return;
+
+    // 3. 숨겨진 저장소에 이어 붙이기
+    hiddenInputBuffer += typedChar;
+    
+    const currentBufferNum = Number(hiddenInputBuffer);
+    const strCorrect = String(correctAnswer);
+
+    // 4. 로직 검사 (shouldIgnoreInput 기능 내장)
+    
+    // [엄격 모드 체크]
+    // 정답(12)인데 입력값(5)라면? -> 저장소 비우고 종료
+    if (STRICT_INPUT_MODE) {
+      if (currentBufferNum !== correctAnswer && !strCorrect.startsWith(hiddenInputBuffer)) {
+         hiddenInputBuffer = ""; // 틀렸으니 초기화
+         return;
       }
-      // Wrong answer - don't process, let timeout handle it
     }
+
+    // [늦은 답변 체크]
+    if (IGNORE_LATE_ANSWERS) {
+      if (currentBufferNum === previousRoundAnswer && (Date.now() - lastRoundChangeTime < 1500)) {
+        console.log("늦은 답변 무시됨");
+        hiddenInputBuffer = ""; // 무시하고 초기화
+        return;
+      }
+    }
+
+    // 5. 정답 판별
+    // 저장된 값이 정답과 완전히 일치하면 처리
+    if (currentBufferNum === correctAnswer) {
+        answerProcessed = true;
+        const success = processAnswer(currentBufferNum);
+        if (success) {
+           hiddenInputBuffer = ""; // 정답 맞췄으니 초기화
+        } else {
+           answerProcessed = false;
+        }
+    }
+    
+    // 부분 일치(예: 정답 12인데 현재 1)라면?
+    // 아무것도 하지 않음 (hiddenInputBuffer에 '1'이 저장된 상태로 대기)
   });
+
+
+
+
+
+
+
+
+
 
   // Enter key handler - for typed mode, process correct answers immediately
   // Wrong answers wait for timeout
@@ -2410,5 +2511,75 @@ function saveAudioSpeedSettings() {
   } catch (error) {
     console.error('Error saving audio speed settings:', error);
   }
+}
+
+
+// [추가] 피드백 설정 저장 함수
+function saveFeedbackSettings() { 
+  try{
+    localStorage.setItem('pasatFeedbackSettings', JSON.stringify(feedbackSettings));
+  }catch(e){console.error(e);} 
+}
+
+// [추가] 피드백 UI 업데이트 함수
+function updateFeedbackUI() {
+  const showFeedback = document.getElementById('showFeedback');
+  const feedbackDurationSlider = document.getElementById('feedbackDurationSlider');
+  const feedbackDurationValue = document.getElementById('feedbackDurationValue');
+  
+  if (showFeedback) showFeedback.checked = feedbackSettings.enabled;
+  if (feedbackDurationSlider) feedbackDurationSlider.value = feedbackSettings.duration;
+  
+  if (feedbackDurationValue) {
+    const val = feedbackSettings.duration;
+    if (val <= 400) feedbackDurationValue.textContent = "Short (" + (val/1000) + "s)";
+    else if (val >= 1500) feedbackDurationValue.textContent = "Long (" + (val/1000) + "s)";
+    else feedbackDurationValue.textContent = "Normal (" + (val/1000) + "s)";
+  }
+}
+
+
+// [수정된 함수] 입력 검증 (부분 일치 허용 + 정답 없음 방어)
+function shouldIgnoreInput(userInputValue) {
+  // 1. 숫자가 아니면 일단 통과 (시스템 처리용)
+  if (userInputValue === null || isNaN(userInputValue)) return false;
+
+  // 2. [방어] 정답이 아직 생성되지 않은 전환 구간이면 무조건 차단
+  if (correctAnswer === null) {
+    return true; 
+  }
+
+  const numInput = Number(userInputValue);
+
+  // 3. 엄격 모드 (두 자리 수 입력 문제 해결)
+  if (STRICT_INPUT_MODE) {
+    // 문자열로 변환해서 비교 (예: 정답 "12", 입력 "1")
+    const strInput = String(userInputValue);
+    const strCorrect = String(correctAnswer);
+
+    // 정답과 완전히 일치하면? -> 통과 (false)
+    if (numInput === correctAnswer) {
+      return false;
+    }
+
+    // [핵심] 입력값이 정답의 '앞부분'과 일치하면? -> 통과 (아직 입력 중인 상태)
+    // 예: 정답이 12일 때, 1을 입력하면 통과시킴
+    if (strCorrect.startsWith(strInput)) {
+      return false; 
+    }
+
+    // 위 두 경우가 아니면 틀린 입력 -> 차단 (true)
+    return true;
+  }
+
+  // 4. 늦은 답변 방지 (기존 로직 유지)
+  if (IGNORE_LATE_ANSWERS) {
+    if (numInput === previousRoundAnswer && (Date.now() - lastRoundChangeTime < 1500)) {
+      console.log("늦은 답변 감지됨: 오답 처리 안 함");
+      return true; 
+    }
+  }
+
+  return false; // 그 외에는 정상 처리
 }
 
