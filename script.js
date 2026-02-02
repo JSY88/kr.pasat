@@ -6,8 +6,8 @@ const STRICT_INPUT_MODE = true;
 // 2. 늦은 답변 봐주기: 문제가 바뀐 직후(1.5초)에 이전 정답을 입력하면 무시함 (true: 켜기)
 const IGNORE_LATE_ANSWERS = true;
 
-// [추가] 3. 자극 전환 시 '잠깐 멈춤': 새로운 숫자가 나오면 0.5초 동안 입력을 아예 막아요.
-const INPUT_LOCK_DURATION = 500; // 0.5초 (밀리초 단위)
+// 3. 전환멈춤 구간: 숫자가 바뀐 직후 이 시간(ms) 동안은 입력을 받지 않음 (기본값: 500)
+const INPUT_BLOCK_DURATION = 500;
 
 // 스마트 확률형 숫자 생성기
 // 패턴이 감지되면 '무조건 차단'하지 않고, '주사위를 굴려서' 통과 여부를 결정합니다.
@@ -18,6 +18,7 @@ const INPUT_LOCK_DURATION = 500; // 0.5초 (밀리초 단위)
 // 이전 정답을 기억하기 위한 변수 (수정하지 마세요)
 let previousRoundAnswer = null;
 let lastRoundChangeTime = 0;
+let inputBlockedUntil = 0;  // [새로 추가] 이 시간까지 입력 차단
 
 // Howler.js audio system variables
 let howlReady = false;
@@ -35,11 +36,6 @@ let currentIntervalId = null;    // Current interval timer
 let audioPlayInProgress = false; // Flag for audio playing
 let processingAnswer = false;    // Flag for answer processing
 let nextPresentationTime = 0;    // When the next number should be presented
-
-// [추가] 입력 잠금 상태인지 기억하는 변수 ("지금은 얼음 상태니?")
-let isInputLocked = false;
-
-
 let forcePresentNextNumber = false; // Flag to force next number presentation
 let useNumberPad = false;
 let answerProcessed = false;     // Track if current answer has been processed
@@ -293,11 +289,6 @@ const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
 // Helper function to check if button clicks can be processed
 function canProcessButtonClick() {
-  // [추가] 지금 '얼음' 상태라면 아무것도 누르지 못하게 막아요!
-  if (isInputLocked) {
-    return false;
-  }
-
   if (processingAnswer) {
     return false;
   }
@@ -313,10 +304,6 @@ function canProcessButtonClick() {
   // All conditions passed
   return true;
 }
-
-
-
-
 
 // Helper function to check if a specific answer is correct and can be processed immediately
 function canProcessAnswerImmediately(userAnswer) {
@@ -565,15 +552,11 @@ function startSession() {
 
 // Present next number with timeout handling for incorrect answers
 async function presentNextNumber() {
-  // 1. 문제가 바뀌었으니 숨겨둔 입력값 창고를 깨끗이 비워요.
-  if (typeof hiddenInputBuffer !== 'undefined') {
-    hiddenInputBuffer = "";
-  }
-  
-  // 2. 이전 정답과 시간을 기록해둬요 (늦은 답변 체크용)
+  // [수정됨] 문제가 바뀌는 순간, 이전 정답과 시간을 기록해둡니다.
   if (correctAnswer !== null) {
     previousRoundAnswer = correctAnswer;
     lastRoundChangeTime = Date.now();
+    inputBlockedUntil = Date.now() + INPUT_BLOCK_DURATION; // [새로 추가] 입력 차단 시작
   }
 
   // Don't present numbers if session is not active
@@ -615,19 +598,6 @@ async function presentNextNumber() {
   
   // Reset forced presentation flag
   forcePresentNextNumber = false;
-
-  // [핵심 추가] 자극 전환 직후, 설정한 시간만큼 입력을 '잠금(Lock)' 겁니다!
-  isInputLocked = true; // "얼음!"
-  
-  setTimeout(() => {
-    isInputLocked = false; // "땡! 이제 입력해도 돼"
-    
-    // 키보드 모드라면 커서를 다시 깜빡이게 해줘요
-    if (!useNumberPad && sessionActive) {
-      answerInput.focus();
-    }
-  }, INPUT_LOCK_DURATION);
-
 
   // [수정] 다음 숫자가 제시될 때 입력창과 패드를 즉시 초기화
   if (useNumberPad) {
@@ -786,10 +756,6 @@ async function presentNextNumber() {
     }, 1000);
   }
 }
-
-
-
-
 
 
 
@@ -2310,8 +2276,14 @@ window.addEventListener('DOMContentLoaded', function() {
   }
 
   // Register button handlers
-  function handleButtonInteraction(e) {
+function handleButtonInteraction(e) {
     e.preventDefault();
+
+    // [새로 추가] 전환멈춤 구간 체크
+    if (Date.now() < inputBlockedUntil) {
+      numberpadButtons.forEach(b => b.classList.remove('selected'));
+      return;
+    }
 
     // 클릭 가능 상태인지 확인
     if (!canProcessButtonClick()) {
@@ -2322,7 +2294,7 @@ window.addEventListener('DOMContentLoaded', function() {
     const btn = e.currentTarget;
     const value = parseInt(btn.getAttribute('data-value'));
 
-    // [중요] 엄격 모드거나 늦은 답변이면 여기서 멈춤 (버튼 선택 안 됨)
+    // [중요] 엄격 모드거나 늦은 답변이면 여기서 멈춤
     if (shouldIgnoreInput(value)) {
       numberpadButtons.forEach(b => b.classList.remove('selected'));
       return;
@@ -2342,13 +2314,17 @@ window.addEventListener('DOMContentLoaded', function() {
         numberpadButtons.forEach(b => b.classList.remove('selected'));
       }
     } else {
-      // 오답이면 빨간색 표시만 하고 대기 (타임아웃이 처리하도록)
+      // 오답이면 빨간색 표시만 하고 대기
       btn.classList.add('incorrect-selection');
       setTimeout(() => {
         btn.classList.remove('incorrect-selection');
       }, 300);
     }
   }
+
+
+
+
 
   // [이 부분이 빠져있었습니다! 함수를 실제 버튼에 연결하는 코드]
   numberpadButtons.forEach((button) => {
@@ -2372,62 +2348,79 @@ window.addEventListener('DOMContentLoaded', function() {
     descriptionScreen.style.display = 'block';
   });
 
-// Input handler - 고스트 모드 (화면엔 표시 안 됨)
+// Input handler - 일반 모드 (화면에 표시됨)
   answerInput.addEventListener('input', function(e) {
     
-    // 1. 입력된 값을 가져옴
-    const typedChar = answerInput.value;
+    // [새로 추가] 전환멈춤 구간 체크: 아직 차단 시간이면 입력 무시
+    if (Date.now() < inputBlockedUntil) {
+      answerInput.value = ''; // 입력된 값 지우기
+      return;
+    }
+
+    // 입력 가능 상태인지 확인
+    if (!canProcessButtonClick()) {
+      return;
+    }
+
+    const typedValue = answerInput.value.trim();
     
-    // 2. [핵심] 가져오자마자 화면 입력창은 즉시 비워버림 (사용자 눈에 안 보이게)
-    answerInput.value = '';
-
-    if (!canProcessButtonClick()) return;
-
-    // 숫자가 아니면 무시 (시스템적으로 들어간 공백 등)
-    if (!typedChar || isNaN(Number(typedChar))) return;
-
-    // 3. 숨겨진 저장소에 이어 붙이기
-    hiddenInputBuffer += typedChar;
+    // 빈 값이면 무시
+    if (!typedValue) return;
     
-    const currentBufferNum = Number(hiddenInputBuffer);
+    // 숫자가 아니면 무시
+    if (isNaN(Number(typedValue))) {
+      answerInput.value = '';
+      return;
+    }
+
+    const currentInputNum = Number(typedValue);
     const strCorrect = String(correctAnswer);
+    const strInput = String(typedValue);
 
-    // 4. 로직 검사 (shouldIgnoreInput 기능 내장)
-    
     // [엄격 모드 체크]
-    // 정답(12)인데 입력값(5)라면? -> 저장소 비우고 종료
     if (STRICT_INPUT_MODE) {
-      if (currentBufferNum !== correctAnswer && !strCorrect.startsWith(hiddenInputBuffer)) {
-         hiddenInputBuffer = ""; // 틀렸으니 초기화
-         return;
+      // 정답과 완전히 일치하면 처리
+      if (currentInputNum === correctAnswer) {
+        answerProcessed = true;
+        const success = processAnswer(currentInputNum);
+        if (success) {
+          answerInput.value = ''; // 정답 맞췄으니 초기화
+        } else {
+          answerProcessed = false;
+        }
+        return;
       }
+      
+      // 부분 일치(정답의 시작 부분)면 그대로 유지
+      if (strCorrect.startsWith(strInput)) {
+        return; // 계속 입력 가능하도록 그대로 둠
+      }
+      
+      // 틀린 입력이면 지우기
+      answerInput.value = '';
+      return;
     }
 
     // [늦은 답변 체크]
     if (IGNORE_LATE_ANSWERS) {
-      if (currentBufferNum === previousRoundAnswer && (Date.now() - lastRoundChangeTime < 1500)) {
+      if (currentInputNum === previousRoundAnswer && (Date.now() - lastRoundChangeTime < 1500)) {
         console.log("늦은 답변 무시됨");
-        hiddenInputBuffer = ""; // 무시하고 초기화
+        answerInput.value = '';
         return;
       }
     }
 
-    // 5. 정답 판별
-    // 저장된 값이 정답과 완전히 일치하면 처리
-    if (currentBufferNum === correctAnswer) {
-        answerProcessed = true;
-        const success = processAnswer(currentBufferNum);
-        if (success) {
-           hiddenInputBuffer = ""; // 정답 맞췄으니 초기화
-        } else {
-           answerProcessed = false;
-        }
+    // 정답 판별
+    if (currentInputNum === correctAnswer) {
+      answerProcessed = true;
+      const success = processAnswer(currentInputNum);
+      if (success) {
+        answerInput.value = ''; // 정답 맞췄으니 초기화
+      } else {
+        answerProcessed = false;
+      }
     }
-    
-    // 부분 일치(예: 정답 12인데 현재 1)라면?
-    // 아무것도 하지 않음 (hiddenInputBuffer에 '1'이 저장된 상태로 대기)
   });
-
 
 
 
@@ -2578,25 +2571,19 @@ function updateFeedbackUI() {
 }
 
 
-// [수정된 함수] 입력 검증 (잠금 기능 + 부분 일치 + 정답 없음 방어)
+// [수정된 함수] 입력 검증 (부분 일치 허용 + 정답 없음 방어)
 function shouldIgnoreInput(userInputValue) {
-  
-  // 1. [핵심] 자극 전환 직후 '얼음(Lock)' 상태라면 무조건 차단!
-  if (isInputLocked) {
-    return true; 
-  }
-
-  // 2. 숫자가 아니면 일단 통과 (시스템 처리용)
+  // 1. 숫자가 아니면 일단 통과 (시스템 처리용)
   if (userInputValue === null || isNaN(userInputValue)) return false;
 
-  // 3. [방어] 정답이 아직 생성되지 않은 전환 구간이면 무조건 차단
+  // 2. [방어] 정답이 아직 생성되지 않은 전환 구간이면 무조건 차단
   if (correctAnswer === null) {
     return true; 
   }
 
   const numInput = Number(userInputValue);
 
-  // 4. 엄격 모드 (두 자리 수 입력 문제 해결)
+  // 3. 엄격 모드 (두 자리 수 입력 문제 해결)
   if (STRICT_INPUT_MODE) {
     // 문자열로 변환해서 비교 (예: 정답 "12", 입력 "1")
     const strInput = String(userInputValue);
@@ -2617,7 +2604,7 @@ function shouldIgnoreInput(userInputValue) {
     return true;
   }
 
-  // 5. 늦은 답변 방지 (기존 로직 유지)
+  // 4. 늦은 답변 방지 (기존 로직 유지)
   if (IGNORE_LATE_ANSWERS) {
     if (numInput === previousRoundAnswer && (Date.now() - lastRoundChangeTime < 1500)) {
       console.log("늦은 답변 감지됨: 오답 처리 안 함");
